@@ -1,0 +1,627 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>随机密码生成器</title>
+<style>
+  :root{
+    --tan:#dbbfa4;
+    --ivory:#f0eee9;
+    --mauve:#c3b1a5;
+    --ink:#5c4c3f;
+    --ink-soft:#8c7a6b;
+    --page-bg:#faf7f2;
+    --off-bg:#efece6;
+  }
+
+  * { box-sizing:border-box; }
+
+  html,body{
+    margin:0;
+    padding:0;
+    height:100%;
+    background:var(--page-bg);
+    font-family: system-ui, -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    color: var(--ink);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .page{
+    min-height:100%;
+    min-height:100dvh;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    justify-content:flex-end;
+    padding:24px;
+    /* pin card bottom near visual center; extra height grows upward only */
+    padding-bottom:max(24px, calc(50dvh - 200px));
+  }
+
+  .card{
+    width:100%;
+    max-width:520px;
+    padding:8px 4px;
+    flex:0 0 auto;
+  }
+
+  /* password display */
+  .password-box{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:14px;
+    background:var(--ivory);
+    border:2px solid rgba(219,191,164,0.5);
+    border-radius:18px;
+    padding:20px;
+    cursor:pointer;
+    -webkit-user-select:none;
+    user-select:none;
+    transition: background .18s ease, border-color .18s ease;
+    outline:none;
+  }
+  .password-box:hover{ border-color: var(--tan); }
+  .password-box:focus-visible{ border-color: var(--mauve); box-shadow:0 0 0 3px rgba(195,177,165,0.35); }
+
+  .text-area{
+    position:relative;
+    flex:1;
+    min-width:0;
+  }
+
+  .password-text{
+    display:block;
+    font-family: ui-monospace, "SFMono-Regular", "Cascadia Mono", Consolas, monospace;
+    font-size: 24px;
+    font-weight:600;
+    letter-spacing: 0.5px;
+    color: var(--ink);
+    word-break: break-all;
+    line-height:1.3;
+    transition: opacity .12s ease;
+  }
+
+  .password-box.copied{
+    background: var(--tan);
+    border-color: var(--tan);
+  }
+  .password-box.copied .password-text{ color:#fff9f2; }
+
+  .password-box.locked .password-text{ opacity:0.35; }
+
+  .heart{
+    position:absolute;
+    top:-6px;
+    right:-6px;
+    width:16px;
+    height:16px;
+    opacity:0;
+    transform: scale(0.6);
+    transition: opacity .25s ease, transform .25s ease;
+    pointer-events:none;
+  }
+  .password-box.copied .heart{
+    opacity:1;
+    transform: scale(1);
+    animation: heartbeat .55s ease;
+  }
+  @keyframes heartbeat{
+    0%{ transform:scale(0.5); }
+    45%{ transform:scale(1.25); }
+    70%{ transform:scale(0.95); }
+    100%{ transform:scale(1); }
+  }
+
+  .refresh-btn{
+    flex-shrink:0;
+    width:44px;
+    height:44px;
+    border-radius:13px;
+    border:none;
+    background:rgba(255,255,255,0.65);
+    color: var(--ink-soft);
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    cursor:pointer;
+    transition: background .15s ease, color .15s ease;
+  }
+  .refresh-btn:hover{ background:#fff; color:var(--ink); }
+  .refresh-btn svg{ width:20px; height:20px; }
+  .refresh-btn.spin svg{ animation: spin-once .5s cubic-bezier(.33, .33, 0, 1); }
+  @keyframes spin-once{
+    from{ transform: rotate(0deg); }
+    to{ transform: rotate(360deg); }
+  }
+
+  /* length control */
+  .control{ margin-top:24px; }
+  .control-head{
+    display:flex;
+    justify-content:space-between;
+    align-items:baseline;
+    margin-bottom:10px;
+    font-size:13px;
+    color: var(--ink-soft);
+  }
+  .length-value{
+    font-family: ui-monospace, Consolas, monospace;
+    font-size:15px;
+    font-weight:700;
+    color: var(--ink);
+  }
+
+  input[type="range"]{
+    -webkit-appearance:none;
+    appearance:none;
+    position:relative;
+    z-index:1;
+    display:block;
+    /* widen by thumb size and shift left by half, so thumb center maps to 0%..100% of track */
+    width: calc(100% + 20px);
+    height:20px;
+    margin:0 0 0 -10px;
+    background: transparent;
+    outline:none;
+    cursor:pointer;
+  }
+  input[type="range"]::-webkit-slider-thumb{
+    -webkit-appearance:none;
+    box-sizing:border-box;
+    width:20px;
+    height:20px;
+    border-radius:50%;
+    background: var(--mauve);
+    border:3px solid #fff;
+    box-shadow: 0 2px 8px rgba(140,110,80,0.4);
+    cursor:pointer;
+    margin-top:-7px;
+  }
+  input[type="range"]::-moz-range-thumb{
+    box-sizing:border-box;
+    width:20px;
+    height:20px;
+    border-radius:50%;
+    background: var(--mauve);
+    border:3px solid #fff;
+    box-shadow: 0 2px 8px rgba(140,110,80,0.4);
+    cursor:pointer;
+  }
+  input[type="range"]::-webkit-slider-runnable-track{
+    height:6px;
+    border-radius:4px;
+    background: transparent;
+  }
+  input[type="range"]::-moz-range-track{
+    height:6px;
+    border-radius:4px;
+    background: transparent;
+  }
+  input[type="range"]::-moz-range-progress{
+    height:6px;
+    border-radius:4px;
+    background: transparent;
+  }
+
+  .length-body{
+    position:relative;
+    padding-bottom:16px;
+  }
+
+  /* custom track under the native input so dots sit under the thumb */
+  .slider-track{
+    position:absolute;
+    left:0;
+    right:0;
+    top:7px;
+    height:6px;
+    border-radius:4px;
+    z-index:0;
+    pointer-events:none;
+    background: linear-gradient(
+      90deg,
+      var(--tan) 0,
+      var(--tan) calc(var(--thumb-center, 10px)),
+      var(--off-bg) calc(var(--thumb-center, 10px))
+    );
+  }
+
+  .breakpoints{
+    position:absolute;
+    inset:0;
+    z-index:0;
+    pointer-events:none;
+  }
+  .bp-col{
+    position:absolute;
+    top:0;
+    bottom:0;
+    width:28px;
+    left:0;
+    transform: translateX(-50%);
+    border:none;
+    background:none;
+    padding:0;
+    margin:0;
+    pointer-events:auto;
+    cursor:pointer;
+  }
+
+  .bp-dot{
+    position:absolute;
+    top:10px;
+    left:50%;
+    width:4px;
+    height:4px;
+    border-radius:50%;
+    transform: translate(-50%, -50%);
+    background: var(--dot-color, #aca395);
+    transition: opacity .12s ease, background .12s ease;
+  }
+  .bp-col.active .bp-dot{ opacity:0; }
+
+  .bp-num{
+    position:absolute;
+    bottom:2px;
+    left:50%;
+    transform: translateX(-50%);
+    font-size:11px;
+    font-family: ui-monospace, Consolas, monospace;
+    color: var(--ink-soft);
+  }
+  .bp-col.active .bp-num{ color: var(--ink); font-weight:700; }
+
+  /* toggle cards */
+  .toggle-grid{
+    margin-top:26px;
+    display:grid;
+    grid-template-columns: 1fr 1fr;
+    gap:12px;
+  }
+
+  .toggle-card{
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    gap:10px;
+    padding:16px 12px;
+    border-radius:16px;
+    border:2px solid transparent;
+    background: var(--off-bg);
+    cursor:pointer;
+    font-family:inherit;
+    transition: background .2s ease, box-shadow .2s ease, border-color .2s ease;
+  }
+
+  .toggle-glyph{
+    font-family: ui-monospace, Consolas, monospace;
+    font-size:21px;
+    font-weight:700;
+    color: var(--ink-soft);
+    line-height:1;
+    letter-spacing:0.5px;
+    transition: color .2s ease;
+  }
+  .toggle-name{
+    font-size:15px;
+    font-weight:500;
+    color: var(--ink-soft);
+    transition: color .2s ease;
+  }
+
+  .toggle-card.active{
+    background: var(--tan);
+    border-color: rgba(255,255,255,0.6);
+    box-shadow: 0 8px 18px -8px rgba(219,191,164,0.7);
+  }
+  .toggle-card.active .toggle-glyph,
+  .toggle-card.active .toggle-name{ color:#fff9f2; }
+
+  .toggle-card.shake{ animation: shake .32s ease; }
+  @keyframes shake{
+    0%,100%{ transform: translateX(0); }
+    25%{ transform: translateX(-4px); }
+    75%{ transform: translateX(4px); }
+  }
+
+  @media (max-width:380px){
+    .password-text{ font-size:20px; }
+  }
+</style>
+</head>
+<body>
+<div class="page">
+  <main class="card">
+
+    <div class="password-box" id="passwordBox" role="button" tabindex="0" aria-label="点击复制密码">
+      <div class="text-area">
+        <span class="password-text" id="passwordText"></span>
+        <svg class="heart" viewBox="0 0 24 24" fill="#dbbfa4"><path d="M12 21s-7.5-4.6-10-9.3C0.3 8.1 2 4.5 5.6 4.5c2 0 3.4 1 4.4 2.4C11 5.5 12.4 4.5 14.4 4.5c3.6 0 5.3 3.6 3.6 7.2C19.5 16.4 12 21 12 21z"/></svg>
+      </div>
+      <button class="refresh-btn" id="refreshBtn" aria-label="换一个密码" title="换一个">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21 12a9 9 0 1 1-3-6.7"/>
+          <path d="M21 3v6h-6"/>
+        </svg>
+      </button>
+    </div>
+
+    <div class="control">
+      <div class="control-head">
+        <label for="lengthSlider">密码长度</label>
+        <span class="length-value" id="lengthValue">13</span>
+      </div>
+      <div class="length-body" id="lengthBody">
+        <div class="slider-track" id="sliderTrack" aria-hidden="true"></div>
+        <input type="range" id="lengthSlider" min="6" max="64" value="13">
+        <div class="breakpoints" id="breakpoints">
+          <button type="button" class="bp-col" data-value="8">
+            <span class="bp-dot"></span>
+            <span class="bp-num">8</span>
+          </button>
+          <button type="button" class="bp-col" data-value="16">
+            <span class="bp-dot"></span>
+            <span class="bp-num">16</span>
+          </button>
+          <button type="button" class="bp-col" data-value="32">
+            <span class="bp-dot"></span>
+            <span class="bp-num">32</span>
+          </button>
+          <button type="button" class="bp-col" data-value="64">
+            <span class="bp-dot"></span>
+            <span class="bp-num">64</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div class="toggle-grid">
+      <button class="toggle-card active" data-type="lower">
+        <span class="toggle-glyph">a-z</span>
+        <span class="toggle-name">小写字母</span>
+      </button>
+      <button class="toggle-card active" data-type="upper">
+        <span class="toggle-glyph">A-Z</span>
+        <span class="toggle-name">大写字母</span>
+      </button>
+      <button class="toggle-card active" data-type="digit">
+        <span class="toggle-glyph">0-9</span>
+        <span class="toggle-name">数字</span>
+      </button>
+      <button class="toggle-card" data-type="symbol">
+        <span class="toggle-glyph">!@#</span>
+        <span class="toggle-name">特殊符号</span>
+      </button>
+    </div>
+
+  </main>
+</div>
+
+<script>
+(function(){
+  var CHARS = {
+    lower: 'abcdefghijklmnopqrstuvwxyz',
+    upper: 'ABCDEFGHIJKLMNOPQRSTUVWXYZ',
+    digit: '0123456789',
+    symbol: '!@#$%^&*()_+-=[]{}|;:,.<>?'
+  };
+
+  var state = { length: 13, lower: true, upper: true, digit: true, symbol: false };
+
+  var passwordBox = document.getElementById('passwordBox');
+  var passwordText = document.getElementById('passwordText');
+  var refreshBtn = document.getElementById('refreshBtn');
+  var lengthSlider = document.getElementById('lengthSlider');
+  var lengthValue = document.getElementById('lengthValue');
+  var toggleCards = document.querySelectorAll('.toggle-card');
+  var bpCols = document.querySelectorAll('.bp-col');
+
+  var currentPassword = '';
+
+  function secureRandomInt(maxExclusive){
+    var range = maxExclusive;
+    var maxUint = 4294967296; // 2^32
+    var limit = maxUint - (maxUint % range);
+    var buf = new Uint32Array(1);
+    var val;
+    do {
+      crypto.getRandomValues(buf);
+      val = buf[0];
+    } while (val >= limit);
+    return val % range;
+  }
+
+  function activeTypes(){
+    return Object.keys(CHARS).filter(function(t){ return state[t]; });
+  }
+
+  function buildPool(types){
+    return types.map(function(t){ return CHARS[t]; }).join('');
+  }
+
+  function generatePassword(){
+    var types = activeTypes();
+    if (types.length === 0) return '';
+
+    var length = state.length;
+    var pool = buildPool(types);
+    var result = [];
+
+    // guarantee at least one char from each active type (if length allows)
+    var guaranteed = types.slice(0, Math.min(types.length, length));
+    guaranteed.forEach(function(t){
+      var chars = CHARS[t];
+      result.push(chars[secureRandomInt(chars.length)]);
+    });
+
+    while (result.length < length){
+      result.push(pool[secureRandomInt(pool.length)]);
+    }
+
+    // Fisher-Yates shuffle with secure random
+    for (var i = result.length - 1; i > 0; i--){
+      var j = secureRandomInt(i + 1);
+      var tmp = result[i];
+      result[i] = result[j];
+      result[j] = tmp;
+    }
+
+    return result.join('');
+  }
+
+  function render(){
+    currentPassword = generatePassword();
+    passwordText.textContent = currentPassword || '请至少选择一种字符类型';
+    passwordBox.classList.toggle('locked', !currentPassword);
+  }
+
+  var sliderTrack = document.getElementById('sliderTrack');
+  var lengthBody = document.getElementById('lengthBody');
+  /* Must match ::-*-thumb width and the input width/margin compensation above. */
+  var THUMB_SIZE = 20;
+
+  function thumbCenterX(value, trackWidth){
+    var min = +lengthSlider.min, max = +lengthSlider.max;
+    var pct = (value - min) / (max - min);
+    return pct * trackWidth;
+  }
+
+  function layoutSliderChrome(){
+    var trackWidth = lengthBody.clientWidth;
+    var center = thumbCenterX(state.length, trackWidth);
+    sliderTrack.style.setProperty('--thumb-center', center + 'px');
+    bpCols.forEach(function(col){
+      col.style.left = thumbCenterX(+col.dataset.value, trackWidth) + 'px';
+    });
+  }
+
+  function updateSliderFill(){
+    layoutSliderChrome();
+  }
+
+  var DOT_ON = '#ffffff';
+  var DOT_OFF = '#aca395';
+
+  function updateTickHighlight(){
+    bpCols.forEach(function(col){
+      var v = +col.dataset.value;
+      var active = v === state.length;
+      col.classList.toggle('active', active);
+      col.style.setProperty('--dot-color', state.length >= v ? DOT_ON : DOT_OFF);
+    });
+  }
+
+  if (typeof ResizeObserver !== 'undefined'){
+    new ResizeObserver(layoutSliderChrome).observe(lengthBody);
+  } else {
+    window.addEventListener('resize', layoutSliderChrome);
+  }
+
+  function setLength(value){
+    state.length = value;
+    lengthSlider.value = value;
+    lengthValue.textContent = value;
+    updateSliderFill();
+    updateTickHighlight();
+    render();
+  }
+
+  bpCols.forEach(function(col){
+    col.addEventListener('click', function(){
+      setLength(+col.dataset.value);
+    });
+  });
+
+  lengthSlider.addEventListener('input', function(){
+    state.length = +lengthSlider.value;
+    lengthValue.textContent = state.length;
+    updateSliderFill();
+    updateTickHighlight();
+    render();
+  });
+
+  toggleCards.forEach(function(card){
+    card.addEventListener('click', function(){
+      var type = card.dataset.type;
+      var willBeActive = !state[type];
+
+      if (!willBeActive){
+        var stillActive = Object.keys(CHARS).filter(function(t){
+          return t === type ? false : state[t];
+        });
+        if (stillActive.length === 0){
+          card.classList.remove('shake');
+          void card.offsetWidth;
+          card.classList.add('shake');
+          return;
+        }
+      }
+
+      state[type] = willBeActive;
+      card.classList.toggle('active', willBeActive);
+      render();
+    });
+  });
+
+  function flashCopied(){
+    var original = currentPassword;
+    var keepH = passwordBox.offsetHeight;
+    passwordBox.style.minHeight = keepH + 'px';
+    passwordBox.classList.add('copied');
+    passwordText.textContent = '已复制';
+    setTimeout(function(){
+      passwordBox.classList.remove('copied');
+      passwordText.textContent = original;
+      passwordBox.style.minHeight = '';
+    }, 850);
+  }
+
+  function copyPassword(){
+    if (!currentPassword) return;
+    if (navigator.clipboard && navigator.clipboard.writeText){
+      navigator.clipboard.writeText(currentPassword).then(flashCopied).catch(fallbackCopy);
+    } else {
+      fallbackCopy();
+    }
+  }
+
+  function fallbackCopy(){
+    var ta = document.createElement('textarea');
+    ta.value = currentPassword;
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.select();
+    try { document.execCommand('copy'); } catch(e) {}
+    document.body.removeChild(ta);
+    flashCopied();
+  }
+
+  passwordBox.addEventListener('click', copyPassword);
+  passwordBox.addEventListener('keydown', function(e){
+    if (e.key === 'Enter' || e.key === ' '){
+      e.preventDefault();
+      copyPassword();
+    }
+  });
+
+  refreshBtn.addEventListener('click', function(e){
+    e.stopPropagation();
+    refreshBtn.classList.remove('spin');
+    void refreshBtn.offsetWidth;
+    refreshBtn.classList.add('spin');
+    render();
+  });
+  refreshBtn.addEventListener('animationend', function(){
+    refreshBtn.classList.remove('spin');
+  });
+
+  updateSliderFill();
+  updateTickHighlight();
+  render();
+})();
+</script>
+</body>
+</html>
