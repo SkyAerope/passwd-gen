@@ -297,6 +297,7 @@
     border:2px solid rgba(255,255,255,0.6);
     background: var(--off-bg);
     cursor:pointer;
+    touch-action: manipulation;
     font-family:inherit;
     transition: background .2s ease, border-color .2s ease;
   }
@@ -546,28 +547,51 @@
     render();
   });
 
+  function toggleCard(card){
+    var type = card.dataset.type;
+    var willBeActive = !state[type];
+
+    if (!willBeActive){
+      var stillActive = Object.keys(CHARS).filter(function(t){
+        return t === type ? false : state[t];
+      });
+      if (stillActive.length === 0){
+        card.classList.remove('shake');
+        void card.offsetWidth;
+        card.classList.add('shake');
+        return;
+      }
+    }
+
+    state[type] = willBeActive;
+    card.classList.toggle('active', willBeActive);
+    render();
+  }
+
   toggleCards.forEach(function(card){
     card.addEventListener('click', function(){
-      var type = card.dataset.type;
-      var willBeActive = !state[type];
-
-      if (!willBeActive){
-        var stillActive = Object.keys(CHARS).filter(function(t){
-          return t === type ? false : state[t];
-        });
-        if (stillActive.length === 0){
-          card.classList.remove('shake');
-          void card.offsetWidth;
-          card.classList.add('shake');
-          return;
-        }
-      }
-
-      state[type] = willBeActive;
-      card.classList.toggle('active', willBeActive);
-      render();
+      toggleCard(card);
     });
   });
+
+  // Multi-touch does not reliably generate a click for every finger.
+  // Handle each released touch separately and suppress its synthetic click.
+  document.addEventListener('touchend', function(e){
+    var touchedCard = false;
+    Array.prototype.forEach.call(e.changedTouches, function(touch){
+      var target = touch.target;
+      var card = target && target.closest ? target.closest('.toggle-card') : null;
+      if (!card) return;
+      touchedCard = true;
+
+      // Only activate if the finger was released inside its original button.
+      var rect = card.getBoundingClientRect();
+      if (touch.clientX < rect.left || touch.clientX > rect.right ||
+          touch.clientY < rect.top || touch.clientY > rect.bottom) return;
+      toggleCard(card);
+    });
+    if (touchedCard) e.preventDefault();
+  }, { passive: false });
 
   function flashCopied(){
     var original = currentPassword;
